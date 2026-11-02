@@ -60,17 +60,19 @@ designed for, not a claim of adoption.
 browser (React + Vite + TypeScript UI in web/, served from web/dist)
   │  multipart upload / JSON API / video + frame serving
   ▼
-Go server (cmd/server, stdlib only, binds 127.0.0.1)
+Go server (cmd/server, binds 127.0.0.1)
   ├── internal/meta     Meta Model API client: Files upload, sam-3.1
   │                     /v1/responses per concept, Muse /chat/completions,
   │                     bounded parallelism, retries, one model-repair attempt
   ├── internal/tracking ffprobe metadata + ffmpeg frames (CPU only),
   │                     SAM record-grammar parser, track types
   ├── internal/graph    workflow schema, strict validation, builder prompt
-  └── internal/verify   observed-step parsing, deterministic Compare, report
+  ├── internal/verify   observed-step parsing, deterministic Compare, report
+  └── internal/store    SQLite evidence trail (one append-only runs table)
   │
   ├── data/uploads/     stored videos (served back for playback)
   ├── data/workflows/   saved workflow JSON (atomic write + rename)
+  ├── data/processlens.db  verification runs: report + tracks snapshot each
   └── testdata/         fixtures used by mock mode and tests
 ```
 
@@ -81,6 +83,7 @@ Go server (cmd/server, stdlib only, binds 127.0.0.1)
 | `internal/tracking` | ffmpeg/ffprobe helpers (CPU only), SAM grammar parser, track types |
 | `internal/graph` | workflow schema, validation, builder prompt |
 | `internal/verify` | observed-vs-expected comparison, report |
+| `internal/store` | SQLite evidence trail: append-only verification runs |
 | `web/` | demo UI: React + Vite + TypeScript via pnpm (see `web/package.json` + lockfile); Go serves the `web/dist` build; dev via `vite dev` with API proxy (Geist via Google Fonts with system-font fallback) |
 | `testdata/` | fixtures: workflow, tracks, observed steps, report, SAM sample |
 | `scripts/verify-live.sh` | key check + model discovery + chat probe + responses route probe |
@@ -136,9 +139,10 @@ models perceive and structure, the code scores.
   inside the uploads dir (traversal, absolute paths, dotfiles, and symlinks
   rejected — covered by tests); uploads capped at 200 MiB; the API key never
   appears in logs.
-- **Minimal dependencies**: `go.mod` has no `require` directives (backend is Go
-  stdlib only); the frontend pins React + Vite + TypeScript in
-  `web/pnpm-lock.yaml` (`pnpm audit`: no known vulnerabilities at build time).
+- **Minimal dependencies**: the backend adds one Go module for evidence
+  storage (`modernc.org/sqlite`, pure Go, no cgo); the frontend pins React +
+  Vite + TypeScript in `web/pnpm-lock.yaml`. `govulncheck` and `pnpm audit`
+  report no known vulnerabilities at build time.
 
 ## Install + run
 
@@ -226,7 +230,8 @@ printed; no other numbers are claimed):
 export GOCACHE=/tmp/processlens-gocache
 gofmt -l .            # clean: no output
 go vet ./...          # ok, no findings
-go test -count=1 ./...  # ok on all 5 packages
+go test -count=1 ./...  # ok on all 6 packages
+go run golang.org/x/vuln/cmd/govulncheck@latest ./internal/store/  # no vulnerabilities
 pnpm --dir web lint   # oxlint: 0 warnings, 0 errors
 pnpm --dir web build  # tsc -b clean, vite build ok
 pnpm --dir web audit  # no known vulnerabilities

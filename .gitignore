@@ -4,6 +4,8 @@ data/uploads/*
 !data/uploads/.gitkeep
 data/workflows/*
 !data/workflows/.gitkeep
+data/*.db
+data/*.db-*
 *.mp4
 *.mov
 *.avi

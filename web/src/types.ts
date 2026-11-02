@@ -108,3 +108,21 @@ export interface SeekRequest {
   t: number
   n: number
 }
+
+// One row of GET /api/runs: the evidence trail without the blobs.
+export interface RunSummary {
+  id: string
+  created_at: string
+  workflow_id: string
+  workflow_name: string
+  source_video: string
+  passed: boolean
+  findings_count: number
+  duration_ms: number
+}
+
+// GET /api/runs/{id}: the stored meta plus the exact bytes the API served.
+export interface RunRecord extends RunSummary {
+  report: Report
+  tracks: TracksJSON
+}

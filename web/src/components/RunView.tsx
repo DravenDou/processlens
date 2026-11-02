@@ -24,7 +24,7 @@ export interface RunViewProps {
   sessionName: string
   activeName: string | null
   onLearned: (wf: Workflow, savedId: string, stampText: string) => void
-  onVerified: (rep: Report, stampText: string) => void
+  onVerified: (rep: Report, stampText: string, runId: string) => void
   // '' means back to the session workflow. Rejects with the select error.
   onSelectSaved: (id: string) => Promise<void>
   onRefresh: () => void
@@ -147,7 +147,7 @@ export default function RunView(p: RunViewProps) {
     route: string,
     label: string,
     submit: () => Promise<Posted<T>>,
-    onDone: (body: T, savedId: string) => void,
+    onDone: (body: T, savedId: string, runId: string) => void,
   ): Promise<void> {
     async function attempt(): Promise<void> {
       setProc(op)({ label, stage: null })
@@ -168,7 +168,7 @@ export default function RunView(p: RunViewProps) {
         const out = await submit()
         window.clearInterval(timer)
         setProc(op)(null)
-        onDone(out.body, out.savedId)
+        onDone(out.body, out.savedId, out.runId)
       } catch (err) {
         window.clearInterval(timer)
         setProc(op)(null)
@@ -197,8 +197,9 @@ export default function RunView(p: RunViewProps) {
       return
     }
     const file = verifyFile
-    void runUpload('verify', '/api/verify', 'Checking video 2 against the workflow.', () => api.verify(file), (rep) => {
-      p.onVerified(rep, `Checked at ${stamp()} · ${rep.findings.length} ${rep.findings.length === 1 ? 'finding' : 'findings'}`)
+    void runUpload('verify', '/api/verify', 'Checking video 2 against the workflow.', () => api.verify(file), (rep, _savedId, runId) => {
+      void _savedId
+      p.onVerified(rep, `Checked at ${stamp()} · ${rep.findings.length} ${rep.findings.length === 1 ? 'finding' : 'findings'}`, runId)
     })
   }
 
@@ -213,7 +214,7 @@ export default function RunView(p: RunViewProps) {
   function loadDemoReport() {
     setVerifyErr(null)
     api.demoReport().then(
-      (rep) => p.onVerified(rep, 'Demo report loaded'),
+      (rep) => p.onVerified(rep, 'Demo report loaded', ''),
       () => setVerifyErr({ msg: 'Demo report failed to load.', retry: loadDemoReport }),
     )
   }

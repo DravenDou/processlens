@@ -2,6 +2,8 @@ import type {
   Health,
   Progress,
   Report,
+  RunRecord,
+  RunSummary,
   TracksJSON,
   Workflow,
   WorkflowEntry,
@@ -16,6 +18,7 @@ async function okJSON<T>(res: Response): Promise<T> {
 export interface Posted<T> {
   body: T
   savedId: string
+  runId: string
 }
 
 async function postVideo<T>(route: string, file: File): Promise<Posted<T>> {
@@ -23,8 +26,9 @@ async function postVideo<T>(route: string, file: File): Promise<Posted<T>> {
   fd.append('video', file, file.name)
   const res = await fetch(route, { method: 'POST', body: fd })
   const savedId = res.headers.get('X-Workflow-ID') || ''
+  const runId = res.headers.get('X-Run-ID') || ''
   const body = await okJSON<T>(res)
-  return { body, savedId }
+  return { body, savedId, runId }
 }
 
 export const api = {
@@ -67,5 +71,14 @@ export const api = {
     return fetch(`/api/tracks?video=${which}`)
       .then((res) => res.json() as Promise<TracksJSON>)
       .catch(() => null)
+  },
+  runs(): Promise<RunSummary[]> {
+    return fetch('/api/runs?limit=50')
+      .then((res) => res.json() as Promise<unknown>)
+      .then((list) => (Array.isArray(list) ? (list as RunSummary[]) : []))
+      .catch(() => [])
+  },
+  run(id: string): Promise<RunRecord> {
+    return fetch('/api/runs/' + encodeURIComponent(id)).then(okJSON<RunRecord>)
   },
 }

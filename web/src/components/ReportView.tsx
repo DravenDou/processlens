@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react'
-import type { Report, SeekRequest, Workflow } from '../types.ts'
+import { useEffect, useMemo, useState } from 'react'
+import { api } from '../api.ts'
+import type { Report, RunRecord, RunSummary, SeekRequest, Workflow } from '../types.ts'
 import { plural } from '../format.ts'
 import { brickColor } from '../bricks.ts'
 import { detailOf } from '../findings.ts'
@@ -10,28 +11,101 @@ interface Props {
   report: Report | null
   workflow: Workflow | null
   demo: boolean
+  // The stored run id of the fresh check, or '' when it was not saved
+  // (demo data) or the store was unavailable.
+  freshRunId: string
 }
 
-export default function ReportView({ report, workflow, demo }: Props) {
+function runLabel(r: RunSummary): string {
+  const when = new Date(r.created_at).toLocaleString()
+  const what = r.passed ? 'match' : plural(r.findings_count, 'finding')
+  return `${when} · ${r.workflow_name} · ${what}`
+}
+
+export default function ReportView({ report, workflow, demo, freshRunId }: Props) {
+  const [runs, setRuns] = useState<RunSummary[] | null>(null)
+  const [historyId, setHistoryId] = useState('')
+  const [historyRun, setHistoryRun] = useState<RunRecord | null>(null)
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyErr, setHistoryErr] = useState<string | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    api.runs().then((list) => {
+      if (alive) setRuns(list)
+    })
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  function handleHistory(id: string): void {
+    setHistoryId(id)
+    setHistoryRun(null)
+    setHistoryErr(null)
+    if (!id) return
+    setHistoryLoading(true)
+    api.run(id).then(
+      (rec) => {
+        setHistoryRun(rec)
+        setHistoryLoading(false)
+      },
+      (err: unknown) => {
+        setHistoryErr('Load failed: ' + (err as Error).message)
+        setHistoryLoading(false)
+      },
+    )
+  }
+
+  function downloadEvidence(): void {
+    const deliver = (rec: RunRecord) => {
+      const blob = new Blob([JSON.stringify(rec, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `processlens-${rec.id}.json`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    }
+    if (historyRun) {
+      deliver(historyRun)
+      return
+    }
+    if (freshRunId) {
+      // Fetch the stored bytes so the download matches the record exactly.
+      api.run(freshRunId).then(deliver, (err: unknown) => {
+        setHistoryErr('Download failed: ' + (err as Error).message)
+      })
+    }
+  }
+
+  // The viewed check: the stored run when one is picked, else the fresh one.
+  const effective = historyId ? (historyRun?.report ?? null) : report
+  const storedTracks = historyId ? (historyRun?.tracks ?? null) : null
+
   const sorted = useMemo(() => {
-    if (!report) return []
-    console.assert(Array.isArray(report.findings), 'findings is not an array')
+    if (!effective) return []
+    console.assert(Array.isArray(effective.findings), 'findings is not an array')
     const order: Record<string, number> = {}
     ;(workflow ? workflow.steps : []).forEach((s, i) => {
       order[s.id] = i
     })
-    return report.findings.slice().sort((a, b) => {
+    return effective.findings.slice().sort((a, b) => {
       const ai = order[a.step_id] === undefined ? 1e9 : order[a.step_id]
       const bi = order[b.step_id] === undefined ? 1e9 : order[b.step_id]
       return ai - bi
     })
-  }, [report, workflow])
-  const [selected, setSelected] = useState(0)
+  }, [effective, workflow])
+  const [selState, setSelState] = useState(0)
+  // Clamped, never an effect: switching runs keeps the position when it fits.
+  const selected = sorted.length ? Math.min(selState, sorted.length - 1) : 0
   const [seek, setSeek] = useState<SeekRequest | null>(null)
 
   function selectFinding(i: number, seekIt: boolean): void {
-    if (!report || !sorted[i]) return
-    setSelected(i)
+    if (!effective || !sorted[i]) return
+    setSelState(i)
     const f = sorted[i]
     if (seekIt && f.t_seconds !== undefined && f.t_seconds !== null) {
       const t = Number(f.t_seconds) || 0
@@ -40,9 +114,22 @@ export default function ReportView({ report, workflow, demo }: Props) {
   }
 
   const bad: Record<string, number> = {}
-  report?.findings.forEach((f) => {
+  effective?.findings.forEach((f) => {
     bad[f.step_id] = (bad[f.step_id] || 0) + 1
   })
+
+  const trailMeta = historyId
+    ? historyLoading
+      ? 'Loading…'
+      : historyRun
+        ? `Run ${historyRun.id} · saved ${new Date(historyRun.created_at).toLocaleString()}`
+        : 'Load failed'
+    : freshRunId
+      ? `Saved as ${freshRunId}`
+      : report
+        ? 'This check was not saved as a run'
+        : 'No checks yet'
+  const downloadable = historyRun !== null || freshRunId !== ''
 
   return (
     <section data-pane="report">
@@ -50,24 +137,66 @@ export default function ReportView({ report, workflow, demo }: Props) {
         <div>
           <h1>Report</h1>
           <p className="sub" id="report-sub">
-            {report ? `\u201C${report.workflow_name}\u201D · source ${report.source_video}` : 'Nothing checked yet.'}
+            {effective
+              ? `\u201C${effective.workflow_name}\u201D · source ${effective.source_video}`
+              : 'Nothing checked yet.'}
           </p>
         </div>
         <span className="pill warn" data-demo-badge hidden={!demo}>
           Demo data
         </span>
       </div>
+      {(effective || (runs && runs.length > 0)) && (
+        <div className="panel" style={{ marginBottom: '12px' }}>
+          <header>
+            <h2>Evidence trail</h2>
+            <span className="meta" id="trail-meta">
+              {trailMeta}
+            </span>
+          </header>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <select
+              className="input"
+              id="trail-select"
+              style={{ flex: '1 1 240px' }}
+              value={historyId}
+              onChange={(e) => handleHistory(e.target.value)}
+              aria-label="Evidence run to inspect"
+            >
+              <option value="">{report ? 'Latest check' : 'Latest check (none yet)'}</option>
+              {(runs || []).map((r) => (
+                <option key={r.id} value={r.id}>
+                  {runLabel(r)}
+                </option>
+              ))}
+            </select>
+            <button
+              className="btn tertiary"
+              id="trail-download"
+              disabled={!downloadable}
+              onClick={downloadEvidence}
+            >
+              Download evidence (.json)
+            </button>
+          </div>
+          {historyErr && (
+            <div className="errbox" style={{ marginTop: '8px' }}>
+              <span>{historyErr}</span>
+            </div>
+          )}
+        </div>
+      )}
       <div className="panel">
         <header>
           <h2>Verdict</h2>
           <span className="meta" id="report-meta">
-            {report ? plural(report.findings.length, 'finding') : '—'}
+            {effective ? plural(effective.findings.length, 'finding') : '—'}
           </span>
         </header>
         <div id="verdict">
-          {!report ? (
+          {!effective ? (
             <div className="empty">Verify a video to fill this view.</div>
-          ) : report.passed ? (
+          ) : effective.passed ? (
             <div className="verdict">
               <span className="count zero num">0</span>
               <span className="pill pos">Match</span>
@@ -75,7 +204,7 @@ export default function ReportView({ report, workflow, demo }: Props) {
             </div>
           ) : (
             <div className="verdict">
-              <span className="count num">{report.findings.length}</span>
+              <span className="count num">{effective.findings.length}</span>
               <span className="pill neg">Deviations</span>
               <span className="sentence">First: {detailOf(sorted[0])}</span>
             </div>
@@ -102,16 +231,18 @@ export default function ReportView({ report, workflow, demo }: Props) {
         <header>
           <h2>Evidence</h2>
           <span className="meta" id="evidence-meta">
-            {report ? report.source_video : '—'}
+            {effective ? effective.source_video : '—'}
           </span>
         </header>
         <div id="evidence">
-          {report ? (
+          {effective ? (
             <EvidencePlayer
-              report={report}
+              key={`${effective.source_video}:${historyId || 'live'}`}
+              report={effective}
               finding={sorted[selected] ?? null}
               workflow={workflow}
               seek={seek}
+              stored={storedTracks}
             />
           ) : (
             <div className="empty">Verify a video to enable playback.</div>
@@ -122,17 +253,17 @@ export default function ReportView({ report, workflow, demo }: Props) {
         <header>
           <h2>Findings</h2>
           <span className="meta" id="findings-meta">
-            {report ? plural(report.findings.length, 'finding') : '—'}
+            {effective ? plural(effective.findings.length, 'finding') : '—'}
           </span>
         </header>
         <div id="findings">
-          {!report ? (
+          {!effective ? (
             <div className="empty">No findings yet.</div>
           ) : sorted.length ? (
             sorted.map((f, i) => (
               <FindingCard
                 key={f.step_id + ':' + i}
-                rep={report}
+                rep={effective}
                 finding={f}
                 index={i}
                 selected={i === selected}

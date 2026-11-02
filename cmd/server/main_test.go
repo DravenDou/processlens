@@ -18,6 +18,7 @@ import (
 
 	"processlens/internal/graph"
 	"processlens/internal/meta"
+	"processlens/internal/store"
 	"processlens/internal/tracking"
 	"processlens/internal/verify"
 )
@@ -56,6 +57,14 @@ func mockServer(t *testing.T) *Server {
 	s.SetUploadsDir(t.TempDir())
 	// Same for saved workflows: Learn persists to disk now.
 	s.SetWorkflowsDir(t.TempDir())
+	// Same for the evidence trail: every test gets a throwaway database,
+	// never the real repo data/processlens.db.
+	st, err := store.Open(filepath.Join(t.TempDir(), "runs.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { st.Close() })
+	s.SetStore(st)
 	return s
 }
 
@@ -67,6 +76,12 @@ func liveServerNoLearn(t *testing.T) *Server {
 	s := &Server{root: repoRoot(t), mock: false, meta: nil}
 	s.SetUploadsDir(t.TempDir())
 	s.SetWorkflowsDir(t.TempDir())
+	st, err := store.Open(filepath.Join(t.TempDir(), "runs.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { st.Close() })
+	s.SetStore(st)
 	return s
 }
 

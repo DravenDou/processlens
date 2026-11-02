@@ -22,6 +22,7 @@ export default function App() {
   const [activeName, setActiveName] = useState<string | null>(null)
   const [runStamp, setRunStamp] = useState('No runs yet')
   const [runKey, setRunKey] = useState(0)
+  const [lastRunId, setLastRunId] = useState('')
 
   useEffect(() => {
     api.health().then(setHealth, () => setHealthDown(true))
@@ -46,10 +47,11 @@ export default function App() {
     go('workflow')
   }
 
-  function handleVerified(rep: Report, stampText: string): void {
+  function handleVerified(rep: Report, stampText: string, runId: string): void {
     setReport(rep)
     setRunKey((k) => k + 1)
     setRunStamp(stampText)
+    setLastRunId(runId)
     go('report')
   }
 
@@ -182,7 +184,9 @@ export default function App() {
               />
             )}
             {view === 'workflow' && <WorkflowView workflow={workflow} demo={demo} />}
-            {view === 'report' && <ReportView key={runKey} report={report} workflow={workflow} demo={demo} />}
+            {view === 'report' && (
+              <ReportView key={runKey} report={report} workflow={workflow} demo={demo} freshRunId={lastRunId} />
+            )}
           </div>
         </main>
       </div>

@@ -9,13 +9,15 @@ interface Props {
   finding: Finding | null
   workflow: Workflow | null
   seek: SeekRequest | null
+  // A stored run replays its own snapshot instead of fetching the live one.
+  stored: TracksJSON | null
 }
 
 // Tracks are usable only when the backend has data for this exact video.
 // Anything else draws nothing and earns the honest empty note.
-function usableTracks(tracks: TracksJSON | null, report: Report): TracksJSON | null {
+function usableTracks(tracks: TracksJSON | null, video: string): TracksJSON | null {
   if (!tracks || !tracks.available) return null
-  if (tracks.video !== report.source_video) return null
+  if (tracks.video !== video) return null
   if (!Array.isArray(tracks.frames) || !tracks.frames.length) return null
   return tracks
 }
@@ -34,7 +36,7 @@ function nearestFrame(frames: FrameTracks[], cur: number): FrameTracks | null {
   return best
 }
 
-export default function EvidencePlayer({ report, finding, workflow, seek }: Props) {
+export default function EvidencePlayer({ report, finding, workflow, seek, stored }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const rafRef = useRef(0)
@@ -62,7 +64,7 @@ export default function EvidencePlayer({ report, finding, workflow, seek }: Prop
     if (!ctx) return null
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     ctx.clearRect(0, 0, cw, ch)
-    const t = usableTracks(tracks, report)
+    const t = usableTracks(stored ?? tracks, report.source_video)
     if (!t || videoError) return null
     const fr = nearestFrame(t.frames, video.currentTime || 0)
     if (!fr || !fr.detections || !fr.detections.length) return null
@@ -114,7 +116,7 @@ export default function EvidencePlayer({ report, finding, workflow, seek }: Prop
       )
     }
     if (tracksFailed) return 'Tracking data could not be loaded.'
-    const t = usableTracks(tracks, report)
+    const t = usableTracks(stored ?? tracks, report.source_video)
     if (!t) {
       return (
         'No tracked objects for this video. ' +
@@ -161,6 +163,7 @@ export default function EvidencePlayer({ report, finding, workflow, seek }: Prop
   // Fetch tracks once per checked video. The token drops a late answer when
   // a newer verify supersedes it.
   useEffect(() => {
+    if (stored) return
     // Fresh mount per verify (the parent keys on the run), so the initial
     // state above is already the reset state; only the fetch runs here.
     const token = (tokenRef.current = tokenRef.current + 1)
@@ -175,7 +178,7 @@ export default function EvidencePlayer({ report, finding, workflow, seek }: Prop
         setTracksFailed(true)
       },
     )
-  }, [report.source_video])
+  }, [report.source_video, stored])
 
   // Redraw after every commit: selection, tracks, errors and resizes all
   // funnel through here, like the drawOverlay calls did.

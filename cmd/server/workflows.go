@@ -200,6 +200,7 @@ func (s *Server) selectWorkflow(id string) (*graph.Workflow, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.lastLearned = wf
+	s.activeWorkflowID = id
 	// No tracking data travels with a saved workflow: clear the learn
 	// bundle rather than serve another video's tracks under this name.
 	s.lastLearnTracks = nil
@@ -242,5 +243,6 @@ func (s *Server) persistLearned(w http.ResponseWriter, wf *graph.Workflow) {
 		log.Printf("save workflow: %v", err)
 		return
 	}
+	s.setActiveWorkflowID(id)
 	w.Header().Set("X-Workflow-ID", id)
 }

@@ -20,6 +20,7 @@ import (
 
 	"processlens/internal/graph"
 	"processlens/internal/meta"
+	"processlens/internal/store"
 	"processlens/internal/tracking"
 	"processlens/internal/verify"
 )
@@ -62,6 +63,11 @@ type Server struct {
 	frameCacheDir    string
 	// staticDir overrides where handleStatic serves the UI from.
 	staticDir string
+	// runs is the SQLite evidence trail; see runs.go.
+	runs *store.Store
+	// activeWorkflowID is the saved id Verify checks against ("" when the
+	// session workflow never reached disk). Guarded by mu.
+	activeWorkflowID string
 }
 
 func main() {
@@ -71,6 +77,9 @@ func main() {
 		log.Fatalf("cwd: %v", err)
 	}
 	s := NewServer(root)
+	if err := s.openRuns(); err != nil {
+		log.Fatalf("runs db: %v", err)
+	}
 	port := strings.TrimSpace(os.Getenv("PORT"))
 	if port == "" {
 		port = defaultPort
@@ -130,6 +139,8 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("POST /api/workflows/select", s.handleWorkflowSelect)
 	mux.HandleFunc("GET /api/demo/workflow", s.handleDemoWorkflow)
 	mux.HandleFunc("GET /api/demo/report", s.handleDemoReport)
+	mux.HandleFunc("GET /api/runs", s.handleRuns)
+	mux.HandleFunc("GET /api/runs/{id}", s.handleRun)
 	mux.HandleFunc("GET /videos/", s.handleVideo)
 	mux.HandleFunc("GET /api/tracks", s.handleTracks)
 	mux.HandleFunc("GET /api/frame", s.handleFrame)
@@ -337,6 +348,7 @@ func (s *Server) handleVerify(w http.ResponseWriter, r *http.Request) {
 		s.setProgress("verify", "error", err.Error(), -1, -1)
 		writeErr(w, status, err)
 	}
+	t0 := time.Now()
 	path, name, err := s.storedVideo(r, "verify")
 	if err != nil {
 		fail(http.StatusBadRequest, err)
@@ -369,6 +381,7 @@ func (s *Server) handleVerify(w http.ResponseWriter, r *http.Request) {
 		// unavailable marker.
 		s.rememberVerify(&trackSet{Video: name, Frames: []tracking.FrameTracks{}})
 		s.setProgress("verify", "report done", fmt.Sprintf("%d findings", len(rep.Findings)), -1, -1)
+		s.persistRun(w, s.currentWorkflowID(), wf.Name, name, rep, time.Since(t0))
 		writeJSON(w, http.StatusOK, rep)
 		return
 	}
@@ -410,6 +423,7 @@ func (s *Server) handleVerify(w http.ResponseWriter, r *http.Request) {
 	s.rememberVerify(&trackSet{Video: name, Available: true, Width: vw, Height: vh, FPS: vfps, Frames: tracks})
 	rep := verify.Compare(wf, name, observed)
 	s.setProgress("verify", "report done", fmt.Sprintf("%d findings", len(rep.Findings)), -1, -1)
+	s.persistRun(w, s.currentWorkflowID(), wf.Name, name, rep, time.Since(t0))
 	writeJSON(w, http.StatusOK, rep)
 }
 
