@@ -39,8 +39,9 @@ designed for, not a claim of adoption.
 - **Custom tasks**: the Learn card accepts 1–8 object phrases (one per line,
   sent as the `object_prompts` field); blank keeps the block-tower set. The
   list is stored on the workflow and Verify reuses it, so any procedure with
-  distinct visible objects — e.g. pack-a-box — works end to end. See
-  [docs/VIDEO-AI.md](docs/VIDEO-AI.md) for generating example clips.
+  distinct visible objects — e.g. pack-a-box — works end to end. Generate one
+  continuous static-camera clip per take (30–60 s for 6 steps, ~10 s for 3),
+  no cuts, and paste 1–8 object phrases.
 - **Verify** (`POST /api/verify`): upload a video of a new execution. The
   server tracks it, maps it to observed steps, and compares them against the
   learned workflow with a deterministic comparator. The Report view shows a
@@ -98,10 +99,6 @@ Go server (cmd/server, binds 127.0.0.1)
 | `web/` | demo UI: React + Vite + TypeScript via pnpm (see `web/package.json` + lockfile); Go serves the `web/dist` build; dev via `vite dev` with API proxy (Geist via Google Fonts with system-font fallback) |
 | `testdata/` | fixtures: workflow, tracks, observed steps, report, SAM sample |
 | `scripts/verify-live.sh` | key check + model discovery + chat probe + responses route probe |
-| `docs/RECORDING.md` | recording protocol (+ `RECORDING.es.md` in Spanish) |
-| `docs/VIDEO-AI.md` | video-AI example kit: pack-a-box scripts + prompts (+ `VIDEO-AI.es.md`) |
-| `docs/DEMO-90S.md` | 90-second demo runbook |
-| `docs/AUDIT.md` | read-only technical audit (2026-11-02, in Spanish) |
 
 ## Meta models used
 
@@ -188,9 +185,9 @@ Live mode (real API):
    `META_MUSE_MODEL`).
 3. Restart the server (it reads `.env` on boot) and upload real videos.
 
-Recording protocol (camera setup, the 6 steps, the 3 planted errors for
-video 2): [docs/RECORDING.md](docs/RECORDING.md)
-([versión en español](docs/RECORDING.es.md)).
+Recording protocol: fixed top-down camera, 6 block steps in order for video
+1; video 2 skips step 3 (yellow), does step 5 before step 4 (white before
+orange), and places the white brick off-center right.
 
 ## Real vs demo mode
 
@@ -304,11 +301,8 @@ repo was created in that window:
 - Custom tasks: optional `object_prompts` on Learn (stored per workflow,
   reused by Verify), custom-objects note, tracked-objects line and reference
   playback in the Workflow view.
-- Fixtures and protocol: `testdata/` (workflow, tracks, observed steps,
-  report, SAM sample), `docs/RECORDING.md` (+ Spanish version),
-  `docs/VIDEO-AI.md` video-AI example kit (+ Spanish version),
-  `docs/AUDIT.md` read-only audit, `docs/DEMO-90S.md` demo runbook,
-  `scripts/verify-live.sh`.
+- Fixtures and tooling: `testdata/` (workflow, tracks, observed steps,
+  report, SAM sample), `scripts/verify-live.sh`.
 
 ## Security notes
 
