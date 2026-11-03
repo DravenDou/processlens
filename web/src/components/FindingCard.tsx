@@ -1,7 +1,7 @@
 import type { KeyboardEvent } from 'react'
 import type { Finding, Report, Workflow } from '../types.ts'
 import { fmtDur } from '../format.ts'
-import { checkpointText, detailOf, hasMoment, reviewText, stepById } from '../findings.ts'
+import { checkpointText, detailOf, hasMoment, reviewText, stepById, whereText } from '../findings.ts'
 
 interface Props {
   rep: Report
@@ -25,6 +25,7 @@ export default function FindingCard({ rep, finding: f, index, selected, workflow
   const support = hasMoment(f)
     ? `Reported at ${fmtDur(f.t_seconds as number)} in ${rep.source_video}.`
     : 'No matching observation in the checked execution.'
+  const where = whereText(f, workflow)
   return (
     <article
       className="finding"
@@ -45,6 +46,12 @@ export default function FindingCard({ rep, finding: f, index, selected, workflow
         <span className="mono">{f.step_id}</span>
       </div>
       <div className="ev-grid">
+        {where && (
+          <div className="ev-row">
+            <span className="k">Where it went wrong</span>
+            <span className="val">{where}</span>
+          </div>
+        )}
         <div className="ev-row">
           <span className="k">Expected step</span>
           <span className="val">{expected}</span>

@@ -47,7 +47,10 @@ designed for, not a claim of adoption.
   learned workflow with a deterministic comparator. The Report view shows a
   verdict, a per-step rail, and one evidence card per finding
   (`missing` / `wrong-order` / `misplaced`), each with the expected step, the
-  observed result, a video moment, and what to review.
+  observed result, a video moment, and what to review. Every card also carries
+  a "Where it went wrong" row in plain language — which step and which objects
+  were involved — derived from the finding detail and the workflow labels only
+  (nothing invented).
 - **Evidence playback**: the checked video is served back with a canvas overlay
   of tracked boxes; clicking a finding (or its "Play from M:SS" button) seeks
   the player to the reported moment. Boxes matching the selected finding are
@@ -238,7 +241,7 @@ mode and are the fastest path for a live demo with no waiting.
 
 ## Test evidence
 
-Run on 2026-11-02 from the repo root (results below are what these commands
+Run on 2026-11-03 from the repo root (results below are what these commands
 printed; no other numbers are claimed):
 
 ```bash
