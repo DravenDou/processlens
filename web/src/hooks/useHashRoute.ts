@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 
-export type View = 'run' | 'workflow' | 'report'
+export type View = 'run' | 'workflow' | 'report' | 'history'
 
 function readHash(): View {
   const v = (location.hash || '#/run').replace('#/', '')
-  return v === 'workflow' || v === 'report' ? v : 'run'
+  return v === 'workflow' || v === 'report' || v === 'history' ? v : 'run'
 }
 
 export function useHashRoute(onNavigate?: () => void): View {

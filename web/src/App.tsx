@@ -6,8 +6,9 @@ import type { View } from './hooks/useHashRoute.ts'
 import RunView from './components/RunView.tsx'
 import WorkflowView from './components/WorkflowView.tsx'
 import ReportView from './components/ReportView.tsx'
+import HistoryView from './components/HistoryView.tsx'
 
-const TITLES: Record<View, string> = { run: 'Run', workflow: 'Workflow', report: 'Report' }
+const TITLES: Record<View, string> = { run: 'Run', workflow: 'Workflow', report: 'Report', history: 'History' }
 
 export default function App() {
   const [menuOpen, setMenuOpen] = useState(false)
@@ -23,6 +24,8 @@ export default function App() {
   const [runStamp, setRunStamp] = useState('No runs yet')
   const [runKey, setRunKey] = useState(0)
   const [lastRunId, setLastRunId] = useState('')
+  // Run the Report view should open (from History); null tracks the fresh check.
+  const [reportPick, setReportPick] = useState<{ id: string; n: number } | null>(null)
 
   useEffect(() => {
     api.health().then(setHealth, () => setHealthDown(true))
@@ -52,6 +55,7 @@ export default function App() {
     setRunKey((k) => k + 1)
     setRunStamp(stampText)
     setLastRunId(runId)
+    setReportPick(null)
     go('report')
   }
 
@@ -68,6 +72,22 @@ export default function App() {
     setWorkflow(wf)
     setActiveName(wf.name)
     setRunStamp('Selected saved workflow ' + wf.name)
+  }
+
+  function handleOpenWorkflow(id: string): Promise<void> {
+    return handleSelectSaved(id).then(() => {
+      go('workflow')
+    })
+  }
+
+  function handleOpenRun(id: string): void {
+    setReportPick((prev) => ({ id, n: (prev?.n ?? 0) + 1 }))
+    go('report')
+  }
+
+  function handlePickChange(id: string): void {
+    // Syncs the trail select back: '' tracks the fresh check again.
+    setReportPick((prev) => (id ? { id, n: prev?.n ?? 0 } : null))
   }
 
   const demo = health?.mode === 'mock'
@@ -137,6 +157,18 @@ export default function App() {
             </svg>
             <span>Report</span>
           </a>
+          <a
+            className="nav-item"
+            href="#/history"
+            data-view="history"
+            aria-current={view === 'history' ? 'page' : undefined}
+          >
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor">
+              <circle cx="8" cy="8" r="5.7" />
+              <path d="M8 5v3.2l2.2 1.4" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <span>History</span>
+          </a>
           <div className="bottom">
             <div className="group-label">Session</div>
             <div className="side-meta">
@@ -186,8 +218,17 @@ export default function App() {
             )}
             {view === 'workflow' && <WorkflowView workflow={workflow} demo={demo} />}
             {view === 'report' && (
-              <ReportView key={runKey} report={report} workflow={workflow} demo={demo} freshRunId={lastRunId} />
+              <ReportView
+                key={`${runKey}:${reportPick?.n ?? 0}`}
+                report={report}
+                workflow={workflow}
+                demo={demo}
+                freshRunId={lastRunId}
+                initialHistoryId={reportPick?.id ?? ''}
+                onPickChange={handlePickChange}
+              />
             )}
+            {view === 'history' && <HistoryView onOpenWorkflow={handleOpenWorkflow} onOpenRun={handleOpenRun} />}
           </div>
         </main>
       </div>

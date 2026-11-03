@@ -14,6 +14,10 @@ interface Props {
   // The stored run id of the fresh check, or '' when it was not saved
   // (demo data) or the store was unavailable.
   freshRunId: string
+  // Run to open on mount (from History); the parent remounts per pick.
+  initialHistoryId: string
+  // Syncs trail-select changes back so remounts track the viewed run.
+  onPickChange: (id: string) => void
 }
 
 function runLabel(r: RunSummary): string {
@@ -22,11 +26,11 @@ function runLabel(r: RunSummary): string {
   return `${when} · ${r.workflow_name} · ${what}`
 }
 
-export default function ReportView({ report, workflow, demo, freshRunId }: Props) {
+export default function ReportView({ report, workflow, demo, freshRunId, initialHistoryId, onPickChange }: Props) {
   const [runs, setRuns] = useState<RunSummary[] | null>(null)
-  const [historyId, setHistoryId] = useState('')
+  const [historyId, setHistoryId] = useState(initialHistoryId)
   const [historyRun, setHistoryRun] = useState<RunRecord | null>(null)
-  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyLoading, setHistoryLoading] = useState(initialHistoryId !== '')
   const [historyErr, setHistoryErr] = useState<string | null>(null)
   const [chain, setChain] = useState<{ ok: boolean; count: number; bad_id: string } | null>(null)
 
@@ -38,15 +42,32 @@ export default function ReportView({ report, workflow, demo, freshRunId }: Props
     api.runsVerify().then((status) => {
       if (alive) setChain(status)
     })
+    if (initialHistoryId) {
+      api.run(initialHistoryId).then(
+        (rec) => {
+          if (!alive) return
+          setHistoryRun(rec)
+          setHistoryLoading(false)
+        },
+        (err: unknown) => {
+          if (!alive) return
+          setHistoryErr('Load failed: ' + (err as Error).message)
+          setHistoryLoading(false)
+        },
+      )
+    }
     return () => {
       alive = false
     }
-  }, [])
+    // In practice mount-only: the parent remounts for a new pick via key,
+    // so this prop never changes within a mount.
+  }, [initialHistoryId])
 
   function handleHistory(id: string): void {
     setHistoryId(id)
     setHistoryRun(null)
     setHistoryErr(null)
+    onPickChange(id)
     if (!id) return
     setHistoryLoading(true)
     api.run(id).then(

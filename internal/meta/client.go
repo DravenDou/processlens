@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -392,6 +393,12 @@ func (c *Client) SegmentConcept(ctx context.Context, fileID, concept string) (st
 	return responsesText(concept, body)
 }
 
+// errEmptyOutput marks a completed SAM segment with no output text: a
+// definitive "object not observed", not a transient failure. Callers use
+// errors.Is to let one missing object through while still failing loudly
+// when nothing was observed at all.
+var errEmptyOutput = errors.New("empty output text")
+
 // responsesText extracts concatenated output_text from a Responses API object.
 func responsesText(concept string, body []byte) (string, error) {
 	var parsed struct {
@@ -422,7 +429,7 @@ func responsesText(concept string, body []byte) (string, error) {
 		}
 	}
 	if sb.Len() == 0 {
-		return "", fmt.Errorf("segment %q: empty output text: %s", concept, short(body))
+		return "", fmt.Errorf("segment %q: %w: %s", concept, errEmptyOutput, short(body))
 	}
 	return sb.String(), nil
 }
@@ -478,11 +485,23 @@ func (c *Client) TrackWithProgress(ctx context.Context, videoPath string, prompt
 
 // segmentAll runs one SegmentConcept per prompt with bounded parallelism,
 // returning raw output texts in prompt order. Concurrency 1 (or less) is a
-// sequential fallback. Any per-concept error fails the whole call with the
+// sequential fallback. A concept with empty output text means "not observed"
+// (a skipped step's object, e.g.) and yields an empty text rather than an
+// error — but when EVERY concept is empty the call fails explicitly, since
+// that means broken prompts or an unusable video rather than a partial
+// observation. Any other per-concept error fails the whole call with the
 // concept named (lowest prompt index wins); context cancellation stops
 // feeding workers and returns the context error.
 func (c *Client) segmentAll(ctx context.Context, fileID string, prompts []string) ([]string, error) {
 	return c.segmentAllProgress(ctx, fileID, prompts, nil)
+}
+
+// allEmptyError reports the track-killing case: no concept observed at all.
+// firstEmpty carries the first segment's diagnostics.
+func allEmptyError(total int, firstEmpty error) error {
+	return fmt.Errorf("track: none of the %d tracked objects were observed in this video; "+
+		"check that the objects are visible and the phrases match what is shown "+
+		"(first: %v)", total, firstEmpty)
 }
 
 // segmentAllProgress is segmentAll with one onConcept callback per finished
@@ -494,15 +513,28 @@ func (c *Client) segmentAllProgress(ctx context.Context, fileID string, prompts 
 	total := len(prompts)
 	n := c.samConcurrency()
 	if n <= 1 {
+		empty := 0
+		var firstEmpty error
 		for i, concept := range prompts {
 			text, err := c.SegmentConcept(ctx, fileID, concept)
 			if err != nil {
-				return nil, err
+				if !errors.Is(err, errEmptyOutput) {
+					return nil, err
+				}
+				empty++
+				if firstEmpty == nil {
+					firstEmpty = err
+				}
+				// texts[i] stays "": not observed.
+			} else {
+				texts[i] = text
 			}
-			texts[i] = text
 			if onConcept != nil {
 				onConcept(i+1, total)
 			}
+		}
+		if empty == total {
+			return nil, allEmptyError(total, firstEmpty)
 		}
 		return texts, nil
 	}
@@ -529,6 +561,10 @@ func (c *Client) segmentAllProgress(ctx context.Context, fileID string, prompts 
 			text, err := c.SegmentConcept(ctx, fileID, con)
 			if err != nil {
 				errs[idx] = err
+				if errors.Is(err, errEmptyOutput) && onConcept != nil {
+					// Empty counts as a completion with no text.
+					onConcept(int(done.Add(1)), total)
+				}
 				return
 			}
 			texts[idx] = text
@@ -542,9 +578,22 @@ func (c *Client) segmentAllProgress(ctx context.Context, fileID string, prompts 
 		return nil, fmt.Errorf("track: %w", err)
 	}
 	for _, err := range errs {
-		if err != nil {
+		if err != nil && !errors.Is(err, errEmptyOutput) {
 			return nil, err
 		}
+	}
+	empty := 0
+	var firstEmpty error
+	for _, err := range errs {
+		if errors.Is(err, errEmptyOutput) {
+			empty++
+			if firstEmpty == nil {
+				firstEmpty = err
+			}
+		}
+	}
+	if empty == total {
+		return nil, allEmptyError(total, firstEmpty)
 	}
 	return texts, nil
 }

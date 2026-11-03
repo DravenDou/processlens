@@ -219,6 +219,82 @@ func TestSegmentAllErrorNamesConcept(t *testing.T) {
 	}
 }
 
+func TestSegmentAllPartialEmptyProceeds(t *testing.T) {
+	prompts := []string{"red brick", "missing brick", "blue brick"}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if responsesConcept(t, r) == "missing brick" {
+			responsesOK(t, w, "") // completed, no output text: not observed
+			return
+		}
+		responsesOK(t, w, grammarFor(0))
+	}))
+	defer srv.Close()
+	for _, concurrency := range []int{1, 3} {
+		c := &Client{BaseURL: srv.URL, APIKey: "k", SamModel: "s", HTTP: srv.Client(), SamConcurrency: concurrency, RetryBase: time.Millisecond}
+		texts, err := c.segmentAll(context.Background(), "file-x", prompts)
+		if err != nil {
+			t.Fatalf("concurrency %d: %v, want partial success", concurrency, err)
+		}
+		if texts[1] != "" {
+			t.Fatalf("concurrency %d: empty concept text = %q, want empty", concurrency, texts[1])
+		}
+		merged, err := mergeSegments(texts, prompts, 10)
+		if err != nil {
+			t.Fatalf("concurrency %d: merge: %v", concurrency, err)
+		}
+		for _, fr := range merged {
+			for _, d := range fr.Detections {
+				if d.Label == "missing brick" {
+					t.Fatalf("concurrency %d: merged a detection for the unobserved concept", concurrency)
+				}
+			}
+		}
+		if len(merged) == 0 || len(merged[0].Detections) == 0 {
+			t.Fatalf("concurrency %d: no detections merged from observed concepts", concurrency)
+		}
+	}
+}
+
+func TestSegmentAllAllEmptyFails(t *testing.T) {
+	prompts := []string{"red brick", "blue brick"}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		responsesOK(t, w, "")
+	}))
+	defer srv.Close()
+	for _, concurrency := range []int{1, 3} {
+		c := &Client{BaseURL: srv.URL, APIKey: "k", SamModel: "s", HTTP: srv.Client(), SamConcurrency: concurrency, RetryBase: time.Millisecond}
+		_, err := c.segmentAll(context.Background(), "file-x", prompts)
+		if err == nil {
+			t.Fatalf("concurrency %d: all-empty accepted", concurrency)
+		}
+		msg := err.Error()
+		if !strings.Contains(msg, "none of the 2") || !strings.Contains(msg, "check that the objects are visible") {
+			t.Fatalf("concurrency %d: err = %q, want actionable all-empty failure", concurrency, msg)
+		}
+	}
+}
+
+func TestSegmentAllRealErrorBeatsEmpty(t *testing.T) {
+	prompts := []string{"bad brick", "missing brick"}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch responsesConcept(t, r) {
+		case "bad brick":
+			w.WriteHeader(http.StatusBadRequest)
+			io.WriteString(w, `{"error":"unknown concept"}`)
+		case "missing brick":
+			responsesOK(t, w, "")
+		}
+	}))
+	defer srv.Close()
+	for _, concurrency := range []int{1, 3} {
+		c := &Client{BaseURL: srv.URL, APIKey: "k", SamModel: "s", HTTP: srv.Client(), SamConcurrency: concurrency, RetryBase: time.Millisecond}
+		_, err := c.segmentAll(context.Background(), "file-x", prompts)
+		if err == nil || !strings.Contains(err.Error(), "bad brick") {
+			t.Fatalf("concurrency %d: err = %v, want the real 400 failure", concurrency, err)
+		}
+	}
+}
+
 func TestChatRetryFailTwiceThenSucceed(t *testing.T) {
 	var hits atomic.Int64
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

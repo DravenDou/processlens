@@ -65,6 +65,12 @@ designed for, not a claim of adoption.
   into a SHA-256 hash chain (`GENESIS` seed); `GET /api/runs/verify` reports
   `{ok, count, bad_id}`, the Report view shows the chain badge plus each
   run's short hash, and any past run can be reopened or downloaded as JSON.
+- **History**: the History view lists every saved workflow and every run
+  with its video; one click opens a workflow in Workflow view or a run in
+  Report view with its stored tracks and playback.
+- **Absent objects don't fail a run**: a concept SAM cannot see (a skipped
+  step's object) records zero tracks instead of aborting; only a video where
+  nothing at all is observed fails, with an explicit check-prompts message.
 
 ## Architecture
 
@@ -291,10 +297,10 @@ repo was created in that window:
 - SAM record-grammar parser and ffmpeg/ffprobe helpers (`internal/tracking`).
 - Workflow schema + strict validation (`internal/graph`) and the deterministic
   verifier (`internal/verify`).
-- React + Vite + TypeScript web UI (`web/`, pnpm): Run/Workflow/Report views,
-  processing overlay with real stages and elapsed clock, evidence player with
-  tracked-box overlay and finding seek, saved-workflow selector, mock-mode
-  badges; served from `web/dist`, dev via `vite dev` proxy.
+- React + Vite + TypeScript web UI (`web/`, pnpm): Run/Workflow/Report/History
+  views, processing overlay with real stages and elapsed clock, evidence
+  player with tracked-box overlay and finding seek, saved-workflow selector,
+  mock-mode badges; served from `web/dist`, dev via `vite dev` proxy.
 - SQLite evidence trail (`internal/store`, `data/processlens.db`): append-only
   runs with report + tracks snapshots, SHA-256 hash chain with
   `GET /api/runs/verify`, history picker and JSON download in the Report view.
