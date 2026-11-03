@@ -242,8 +242,15 @@ export default function RunView(p: RunViewProps) {
     <section data-pane="run">
       <div className="title-row">
         <div>
-          <h1>Run</h1>
-          <p className="sub">Teach the workflow from video 1, then check video 2 against it.</p>
+          <h1>Learn once. Check every execution.</h1>
+          <p className="sub">
+            Record one correct process — packing, PPE check, assembly or training. ProcessLens learns the
+            steps, then flags what is missing, out of order, or misplaced in the next video.
+          </p>
+          <p className="usecases" aria-label="Example procedures">
+            <span className="pill">Packing QA</span> <span className="pill">PPE &amp; safety</span>{' '}
+            <span className="pill">Assembly</span> <span className="pill">Hands-on training</span>
+          </p>
         </div>
         <span className="stamp" id="run-stamp">
           {p.stampText}
@@ -266,22 +273,47 @@ export default function RunView(p: RunViewProps) {
             onFile={setLearnFile}
           />
           <label className="sub" htmlFor="learn-prompts" style={{ display: 'block', marginBottom: '4px' }}>
-            Objects to track (one per line, blank = block-tower set)
+            Objects to track — one per line (blank keeps the demo set)
           </label>
           <textarea
             className="input"
             id="learn-prompts"
             rows={3}
             style={{ width: '100%', marginBottom: '8px' }}
+            placeholder={'hard hat\nsafety goggles\ngloves'}
             value={learnPrompts}
             onChange={(e) => setLearnPrompts(e.target.value)}
           />
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            <button className="btn primary" id="learn-btn" disabled={learnProc !== null} onClick={startLearn}>
-              Learn workflow
+          <p className="presets" style={{ margin: '0 0 8px' }}>
+            Try:{' '}
+            <button
+              className="btn tertiary"
+              type="button"
+              onClick={() => setLearnPrompts('cardboard box\nproduct\npacking tape\nshipping label')}
+            >
+              Packing
             </button>
-            <button className="btn tertiary" id="learn-demo" onClick={loadDemoLearn}>
-              Load demo
+            <button
+              className="btn tertiary"
+              type="button"
+              onClick={() => setLearnPrompts('hard hat\nsafety goggles\ngloves')}
+            >
+              PPE check
+            </button>
+            <button
+              className="btn tertiary"
+              type="button"
+              onClick={() => setLearnPrompts('base plate\nscrew\nscrewdriver\nfinished part')}
+            >
+              Assembly
+            </button>
+          </p>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <button className="btn primary" id="learn-demo" onClick={loadDemoLearn}>
+              Load demo — no upload
+            </button>
+            <button className="btn secondary" id="learn-btn" disabled={learnProc !== null} onClick={startLearn}>
+              Learn workflow
             </button>
           </div>
           <div id="learn-status" style={{ marginTop: '12px' }}>
@@ -332,11 +364,11 @@ export default function RunView(p: RunViewProps) {
             {p.activeName ? 'Active workflow: ' + p.activeName : 'Active workflow: none — learn or pick a saved one.'}
           </p>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <button className="btn primary" id="verify-demo" onClick={loadDemoReport}>
+              Load demo — no upload
+            </button>
             <button className="btn secondary" id="verify-btn" disabled={verifyProc !== null} onClick={startVerify}>
               Verify execution
-            </button>
-            <button className="btn tertiary" id="verify-demo" onClick={loadDemoReport}>
-              Load demo
             </button>
           </div>
           <div id="verify-status" style={{ marginTop: '12px' }}>

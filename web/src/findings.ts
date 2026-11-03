@@ -55,6 +55,20 @@ function cellWords(col: number, row: number, level: number): string {
   return `${colWord(col)}, ${rowWord(row)}, ${levelWord(level)}`
 }
 
+export function cellWordsText(col: number, row: number, level: number): string {
+  return cellWords(col, row, level)
+}
+
+const FINDING_LABEL: Record<string, string> = {
+  missing: 'Missing step',
+  'wrong-order': 'Out of order',
+  misplaced: 'Misplaced',
+}
+
+export function findingLabel(type: string): string {
+  return FINDING_LABEL[type] ?? type
+}
+
 function ordinal(n: number): string {
   if (n === 1) return '1st'
   if (n === 2) return '2nd'

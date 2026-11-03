@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { api } from '../api.ts'
 import type { Report, RunRecord, RunSummary, SeekRequest, Workflow } from '../types.ts'
 import { plural } from '../format.ts'
-import { brickColor } from '../bricks.ts'
-import { detailOf } from '../findings.ts'
+import { findingColor, objectColor, paleTint } from '../bricks.ts'
+import { detailOf, whereText } from '../findings.ts'
 import EvidencePlayer from './EvidencePlayer.tsx'
 import FindingCard from './FindingCard.tsx'
 
@@ -235,20 +235,46 @@ export default function ReportView({ report, workflow, demo, freshRunId, initial
             <div className="verdict">
               <span className="count num">{effective.findings.length}</span>
               <span className="pill neg">Deviations</span>
-              <span className="sentence">First: {detailOf(sorted[0])}</span>
+              <span className="sentence">First: {whereText(sorted[0], workflow) ?? detailOf(sorted[0])}</span>
             </div>
           )}
         </div>
+        {effective && effective.findings.length > 0 && (
+          <p className="find-legend" aria-label="Finding types">
+            {(['missing', 'wrong-order', 'misplaced'] as const).map((tp) => {
+              const n = effective.findings.filter((x) => x.type === tp).length
+              if (!n) return null
+              const c = findingColor(tp)
+              return (
+                <span key={tp} className="obj-tag" style={{ background: paleTint(c), color: c }}>
+                  <span className="find-dot" style={{ background: c }} />
+                  {tp} · {n}
+                </span>
+              )
+            })}
+          </p>
+        )}
         <div id="rail" style={{ marginTop: '16px' }}>
           {workflow && (
-            <div className="rail">
+            <div
+              className="rail"
+              style={{ gridTemplateColumns: `repeat(${Math.max(workflow.steps.length, 1)}, minmax(0, 1fr))` }}
+            >
               {workflow.steps.map((s) => {
                 const oid = (s.objects || [])[0] || ''
                 return (
                   <div key={s.id} className={bad[s.id] ? 'node bad' : 'node'}>
-                    <span className="pip" style={{ background: brickColor(oid) }} />
-                    <span className="lbl">{s.id}</span>
-                    <span className="sub">{bad[s.id] ? plural(bad[s.id], 'finding') : s.title}</span>
+                    <span
+                      className="pip"
+                      style={{
+                        background: objectColor(
+                          oid,
+                          workflow.objects.find((o) => o.id === oid)?.label,
+                        ),
+                      }}
+                    />
+                    <span className="lbl">{s.title}</span>
+                    <span className="sub">{bad[s.id] ? plural(bad[s.id], 'finding') : s.id}</span>
                   </div>
                 )
               })}

@@ -19,3 +19,5 @@ web/dist/
 web/dist-ssr/
 web/*.local
 docs/
+
+video-hackathon/

@@ -121,7 +121,9 @@ export default function App() {
             </svg>
             <div>
               <div className="name">ProcessLens</div>
-              <div className="scope">block-tower</div>
+              <div className="scope">
+                {workflow?.prompts?.length ? 'Custom procedure' : workflow ? workflow.name : 'Any manual process'}
+              </div>
             </div>
           </div>
           <div className="group-label">Workspace</div>

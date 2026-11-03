@@ -1,7 +1,8 @@
 import type { KeyboardEvent } from 'react'
 import type { Finding, Report, Workflow } from '../types.ts'
 import { fmtDur } from '../format.ts'
-import { checkpointText, detailOf, hasMoment, reviewText, stepById, whereText } from '../findings.ts'
+import { checkpointText, detailOf, findingLabel, hasMoment, reviewText, stepById, whereText } from '../findings.ts'
+import { findingColor, paleTint } from '../bricks.ts'
 
 interface Props {
   rep: Report
@@ -13,8 +14,12 @@ interface Props {
 }
 
 function pillFor(type: string) {
-  const cls = type === 'missing' ? 'warn' : 'neg'
-  return <span className={'pill ' + cls}>{type}</span>
+  const c = findingColor(type)
+  return (
+    <span className="pill" style={{ background: paleTint(c), color: c }}>
+      {findingLabel(type)}
+    </span>
+  )
 }
 
 export default function FindingCard({ rep, finding: f, index, selected, workflow, onSelect }: Props) {
@@ -29,6 +34,7 @@ export default function FindingCard({ rep, finding: f, index, selected, workflow
   return (
     <article
       className="finding"
+      style={{ borderLeft: `5px solid ${findingColor(f.type)}` }}
       tabIndex={0}
       data-step={f.step_id}
       aria-current={selected ? 'true' : undefined}
@@ -43,7 +49,7 @@ export default function FindingCard({ rep, finding: f, index, selected, workflow
       <div className="finding-head">
         {pillFor(f.type)}
         {hasMoment(f) ? <span className="pill">detected</span> : <span className="pill warn">not-observed</span>}
-        <span className="mono">{f.step_id}</span>
+        <span>{step ? `Step ${step.index}: ${step.title}` : f.step_id}</span>
       </div>
       <div className="ev-grid">
         {where && (

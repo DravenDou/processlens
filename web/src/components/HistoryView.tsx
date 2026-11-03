@@ -2,6 +2,12 @@ import { useEffect, useState } from 'react'
 import { api } from '../api.ts'
 import type { RunSummary, WorkflowEntry } from '../types.ts'
 import { plural } from '../format.ts'
+import { hashHue, paleTint } from '../bricks.ts'
+
+function initials(name: string): string {
+  const parts = name.replace(/[-_]+/g, ' ').split(/\s+/).filter(Boolean)
+  return ((parts[0]?.[0] ?? 'P') + (parts[1]?.[0] ?? '')).toUpperCase()
+}
 
 interface Props {
   onOpenWorkflow: (id: string) => Promise<void>
@@ -50,6 +56,32 @@ export default function HistoryView(p: Props) {
           <span>{err}</span>
         </div>
       )}
+      {workflows && runs && (
+        <div className="kpis hist-kpis" style={{ marginBottom: '12px' }} aria-label="History summary">
+          <div className="kpi">
+            <div className="kpi-label">Workflows learned</div>
+            <div className="kpi-value" style={{ color: '#1d5fbf' }}>
+              {workflows.length}
+            </div>
+          </div>
+          <div className="kpi">
+            <div className="kpi-label">Checks run</div>
+            <div className="kpi-value">{runs.length}</div>
+          </div>
+          <div className="kpi">
+            <div className="kpi-label">Matches</div>
+            <div className="kpi-value" style={{ color: '#2e7d32' }}>
+              {runs.filter((r) => r.passed).length}
+            </div>
+          </div>
+          <div className="kpi">
+            <div className="kpi-label">With deviations</div>
+            <div className="kpi-value" style={{ color: '#c4242a' }}>
+              {runs.filter((r) => !r.passed).length}
+            </div>
+          </div>
+        </div>
+      )}
       <div className="panel">
         <header>
           <h2>Workflows</h2>
@@ -75,7 +107,15 @@ export default function HistoryView(p: Props) {
                 <tbody>
                   {workflows.map((w) => (
                     <tr key={w.id} data-workflow={w.id}>
-                      <td>{w.name}</td>
+                      <td>
+                        <span
+                          className="wf-avatar"
+                          style={{ background: paleTint(hashHue(w.name)), color: hashHue(w.name) }}
+                        >
+                          {initials(w.name)}
+                        </span>{' '}
+                        <span className="find-dot" style={{ background: hashHue(w.name) }} /> {w.name}
+                      </td>
                       <td>
                         <span className="mono">{w.source_video}</span>
                       </td>
@@ -122,7 +162,10 @@ export default function HistoryView(p: Props) {
                   {runs.map((r) => (
                     <tr key={r.id} data-run={r.id}>
                       <td>{fmtWhen(r.created_at)}</td>
-                      <td>{r.workflow_name}</td>
+                      <td>
+                        <span className="find-dot" style={{ background: hashHue(r.workflow_name) }} />{' '}
+                        {r.workflow_name}
+                      </td>
                       <td>
                         <span className="mono">{r.source_video}</span>
                       </td>

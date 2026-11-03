@@ -80,7 +80,7 @@ export default function EvidencePlayer({ report, finding, workflow, seek, stored
     const oy = (ch - dh) / 2
     const keys = highlightKeys(workflow, finding)
     ctx.textBaseline = 'top'
-    ctx.font = '12px system-ui, sans-serif'
+    ctx.font = '600 13px "Geist Mono", ui-monospace, monospace'
     fr.detections.forEach((d) => {
       if (!d || !d.box) return
       const x = ox + d.box.x * dw
@@ -88,22 +88,22 @@ export default function EvidencePlayer({ report, finding, workflow, seek, stored
       const w = d.box.w * dw
       const h = d.box.h * dh
       const sel = isHighlighted(d, keys)
-      ctx.lineWidth = sel ? 5 : 4
+      ctx.lineWidth = sel ? 7 : 5
       ctx.strokeStyle = 'rgba(0,0,0,0.65)'
       ctx.strokeRect(x, y, w, h)
-      ctx.lineWidth = sel ? 3 : 2
+      ctx.lineWidth = sel ? 5 : 3
       ctx.strokeStyle = sel ? '#1d5fbf' : 'rgba(255,255,255,0.95)'
       ctx.strokeRect(x, y, w, h)
       const tag = String(d.label || d.track_id || '')
       if (tag) {
         const tw = ctx.measureText(tag).width + 12
         const tx = Math.min(Math.max(x, ox), ox + dw - tw)
-        let ty = y - 20
+        let ty = y - 24
         if (ty < oy) ty = y + 4
         ctx.fillStyle = sel ? '#1d5fbf' : 'rgba(0,0,0,0.75)'
-        ctx.fillRect(tx, ty, tw, 18)
+        ctx.fillRect(tx, ty, tw, 22)
         ctx.fillStyle = '#ffffff'
-        ctx.fillText(tag, tx + 6, ty + 3)
+        ctx.fillText(tag, tx + 6, ty + 5)
       }
     })
     return fr
