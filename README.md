@@ -312,9 +312,14 @@ repo was created in that window:
 
 ## Security notes
 
-- Zero third-party dependencies (Go stdlib + three static files), so there is
-  no supply chain to audit; if a dependency is ever added, review it first.
+- Small, audited supply chain: one Go module (`modernc.org/sqlite`, pinned in
+  `go.sum`, `govulncheck` clean) plus the pinned pnpm frontend set (`pnpm audit`
+  clean). Review any new dependency before adding it.
 - The server never binds `0.0.0.0`; uploads stay under `data/uploads/`;
   `.env` is gitignored and the key never appears in logs or API responses.
 - Do not commit `.env`, uploaded videos, or extracted frames; see
   `.gitignore`.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
