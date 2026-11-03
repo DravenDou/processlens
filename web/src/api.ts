@@ -21,9 +21,10 @@ export interface Posted<T> {
   runId: string
 }
 
-async function postVideo<T>(route: string, file: File): Promise<Posted<T>> {
+async function postVideo<T>(route: string, file: File, prompts?: string[]): Promise<Posted<T>> {
   const fd = new FormData()
   fd.append('video', file, file.name)
+  if (prompts && prompts.length > 0) fd.append('object_prompts', JSON.stringify(prompts))
   const res = await fetch(route, { method: 'POST', body: fd })
   const savedId = res.headers.get('X-Workflow-ID') || ''
   const runId = res.headers.get('X-Run-ID') || ''
@@ -42,8 +43,8 @@ export const api = {
       .then((res) => res.json() as Promise<Progress>)
       .catch(() => null)
   },
-  learn(file: File): Promise<Posted<Workflow>> {
-    return postVideo<Workflow>('/api/learn', file)
+  learn(file: File, prompts?: string[]): Promise<Posted<Workflow>> {
+    return postVideo<Workflow>('/api/learn', file, prompts)
   },
   verify(file: File): Promise<Posted<Report>> {
     return postVideo<Report>('/api/verify', file)
@@ -80,5 +81,10 @@ export const api = {
   },
   run(id: string): Promise<RunRecord> {
     return fetch('/api/runs/' + encodeURIComponent(id)).then(okJSON<RunRecord>)
+  },
+  runsVerify(): Promise<{ ok: boolean; count: number; bad_id: string } | null> {
+    return fetch('/api/runs/verify')
+      .then((res) => res.json() as Promise<{ ok: boolean; count: number; bad_id: string }>)
+      .catch(() => null)
   },
 }

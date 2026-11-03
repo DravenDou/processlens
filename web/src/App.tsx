@@ -181,6 +181,7 @@ export default function App() {
                 onSelectSaved={handleSelectSaved}
                 onRefresh={refresh}
                 stampText={runStamp}
+                sessionPrompts={workflow?.prompts}
               />
             )}
             {view === 'workflow' && <WorkflowView workflow={workflow} demo={demo} />}

@@ -166,3 +166,46 @@ func TestLearnTracksActiveWorkflowID(t *testing.T) {
 		t.Fatalf("run workflow id = %q, want %q", got.WorkflowID, want)
 	}
 }
+
+func TestRunsVerify(t *testing.T) {
+	s := mockServer(t)
+	if rec := upload(t, s, "/api/verify", "video2-errors.mp4"); rec.Code != http.StatusOK {
+		t.Fatalf("verify code = %d", rec.Code)
+	}
+	rec := getJSON(t, s, "/api/runs/verify")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code = %d: %s", rec.Code, rec.Body.String())
+	}
+	var body struct {
+		OK    bool   `json:"ok"`
+		Count int    `json:"count"`
+		BadID string `json:"bad_id"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if !body.OK || body.Count != 1 || body.BadID != "" {
+		t.Fatalf("body = %+v, want {ok count:1}", body)
+	}
+	for _, key := range []string{`"ok"`, `"count"`, `"bad_id"`} {
+		if !strings.Contains(rec.Body.String(), key) {
+			t.Fatalf("body %s misses key %s", rec.Body.String(), key)
+		}
+	}
+	// An empty store verifies too: zero rows, nothing bad.
+	s2 := mockServer(t)
+	rec = getJSON(t, s2, "/api/runs/verify")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("empty code = %d", rec.Code)
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if !body.OK || body.Count != 0 || body.BadID != "" {
+		t.Fatalf("empty body = %+v", body)
+	}
+	s.SetStore(nil)
+	if rec := getJSON(t, s, "/api/runs/verify"); rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("no-store code = %d, want 503", rec.Code)
+	}
+}

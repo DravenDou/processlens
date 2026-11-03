@@ -43,10 +43,13 @@ type Checkpoint struct {
 	Snapshot []SnapshotItem `json:"snapshot"`
 }
 
-// Workflow is a learned physical process.
+// Workflow is a learned physical process. Prompts remembers the tracking
+// prompts Learn resolved (custom or defaults); old files without the key
+// fall back to the defaults.
 type Workflow struct {
 	Name        string       `json:"name"`
 	SourceVideo string       `json:"source_video"`
+	Prompts     []string     `json:"prompts,omitempty"`
 	Objects     []Object     `json:"objects"`
 	Steps       []Step       `json:"steps"`
 	Checkpoints []Checkpoint `json:"checkpoints"`
@@ -166,5 +169,6 @@ Rules:
 - one checkpoint per step: the full expected object layout right after that step
 - grid: the work mat seen from the fixed camera, col 0 = left, row 0 = far side
 - level 0 = resting on the mat, each stacked brick +1
+- name objects from their tracked labels generically: labels vary with the task, toy bricks are only one example
 - never invent objects that were not observed; every referenced id must exist`
 }

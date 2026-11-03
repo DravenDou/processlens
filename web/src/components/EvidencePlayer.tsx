@@ -11,6 +11,7 @@ interface Props {
   seek: SeekRequest | null
   // A stored run replays its own snapshot instead of fetching the live one.
   stored: TracksJSON | null
+  mode: 'learn' | 'verify'
 }
 
 // Tracks are usable only when the backend has data for this exact video.
@@ -36,7 +37,7 @@ function nearestFrame(frames: FrameTracks[], cur: number): FrameTracks | null {
   return best
 }
 
-export default function EvidencePlayer({ report, finding, workflow, seek, stored }: Props) {
+export default function EvidencePlayer({ report, finding, workflow, seek, stored, mode }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const rafRef = useRef(0)
@@ -118,6 +119,12 @@ export default function EvidencePlayer({ report, finding, workflow, seek, stored
     if (tracksFailed) return 'Tracking data could not be loaded.'
     const t = usableTracks(stored ?? tracks, report.source_video)
     if (!t) {
+      if (mode === 'learn') {
+        return (
+          'No tracked objects for this reference video. ' +
+          'The workflow steps below were learned from this video.'
+        )
+      }
       return (
         'No tracked objects for this video. ' +
         'Boxes appear only when tracking data exists for the checked execution.'
@@ -160,14 +167,14 @@ export default function EvidencePlayer({ report, finding, workflow, seek, stored
     }
   }
 
-  // Fetch tracks once per checked video. The token drops a late answer when
-  // a newer verify supersedes it.
+  // Fetch tracks once per video. The token drops a late answer when a
+  // newer upload supersedes it.
   useEffect(() => {
     if (stored) return
-    // Fresh mount per verify (the parent keys on the run), so the initial
+    // Fresh mount per video (the parent keys on the run), so the initial
     // state above is already the reset state; only the fetch runs here.
     const token = (tokenRef.current = tokenRef.current + 1)
-    void api.tracks('verify').then(
+    void api.tracks(mode).then(
       (body) => {
         if (token !== tokenRef.current) return
         if (body && typeof body === 'object') setTracks(body)
@@ -178,7 +185,7 @@ export default function EvidencePlayer({ report, finding, workflow, seek, stored
         setTracksFailed(true)
       },
     )
-  }, [report.source_video, stored])
+  }, [report.source_video, stored, mode])
 
   // Redraw after every commit: selection, tracks, errors and resizes all
   // funnel through here, like the drawOverlay calls did.
@@ -228,7 +235,7 @@ export default function EvidencePlayer({ report, finding, workflow, seek, stored
           controls
           preload="metadata"
           src={'/videos/' + encodeURIComponent(report.source_video)}
-          aria-label={'Checked execution: ' + report.source_video}
+          aria-label={(mode === 'learn' ? 'Reference video: ' : 'Checked execution: ') + report.source_video}
           onError={() => {
             setVideoError(true)
             stopTick()

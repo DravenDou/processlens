@@ -1,7 +1,9 @@
 package graph
 
 import (
+	"encoding/json"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -84,4 +86,44 @@ func TestValidateRejects(t *testing.T) {
 			t.Fatal("want error for unknown field, got nil")
 		}
 	})
+}
+
+func TestPromptsRoundTrip(t *testing.T) {
+	b, err := os.ReadFile("../../testdata/workflow.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	w, err := Parse(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.Prompts = []string{"screwdriver", "hammer"}
+	enc, err := json.Marshal(w)
+	if err != nil {
+		t.Fatal(err)
+	}
+	back, err := Parse(enc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(back.Prompts, w.Prompts) {
+		t.Fatalf("prompts = %q, want %q", back.Prompts, w.Prompts)
+	}
+}
+
+func TestParseLegacyWithoutPrompts(t *testing.T) {
+	b, err := os.ReadFile("../../testdata/workflow.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(b), "prompts") {
+		t.Fatal("fixture gained a prompts key; this test needs a legacy file")
+	}
+	w, err := Parse(b)
+	if err != nil {
+		t.Fatalf("legacy file must still parse+validate: %v", err)
+	}
+	if len(w.Prompts) != 0 {
+		t.Fatalf("legacy prompts = %q, want empty", w.Prompts)
+	}
 }

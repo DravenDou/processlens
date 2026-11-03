@@ -123,6 +123,26 @@ type runRecord struct {
 	Tracks tracksJSON    `json:"tracks"`
 }
 
+// runsVerify is the GET /api/runs/verify response: the hash-chain verdict.
+type runsVerify struct {
+	OK    bool   `json:"ok"`
+	Count int    `json:"count"`
+	BadID string `json:"bad_id"`
+}
+
+func (s *Server) handleRunsVerify(w http.ResponseWriter, r *http.Request) {
+	if s.runs == nil {
+		writeErr(w, http.StatusServiceUnavailable, fmt.Errorf("runs store unavailable"))
+		return
+	}
+	count, badID, err := s.runs.VerifyChain()
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, runsVerify{OK: badID == "", Count: count, BadID: badID})
+}
+
 func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 	if s.runs == nil {
 		writeErr(w, http.StatusServiceUnavailable, fmt.Errorf("runs store unavailable"))

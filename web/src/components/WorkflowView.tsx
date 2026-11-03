@@ -1,5 +1,6 @@
-import type { Workflow } from '../types.ts'
+import type { Report, Workflow } from '../types.ts'
 import { brickColor } from '../bricks.ts'
+import EvidencePlayer from './EvidencePlayer.tsx'
 
 interface Props {
   workflow: Workflow | null
@@ -17,6 +18,9 @@ export default function WorkflowView({ workflow, demo }: Props) {
   ;(workflow?.checkpoints || []).forEach((c) => {
     cps[c.step_id] = c.snapshot || []
   })
+  const learnReport: Report | null = workflow
+    ? { workflow_name: workflow.name, source_video: workflow.source_video, passed: true, findings: [] }
+    : null
   return (
     <section data-pane="workflow">
       <div className="title-row">
@@ -25,11 +29,37 @@ export default function WorkflowView({ workflow, demo }: Props) {
           <p className="sub" id="workflow-sub">
             {workflow ? `\u201C${workflow.name}\u201D · source ${workflow.source_video}` : 'Nothing learned yet.'}
           </p>
+          {workflow && (
+            <p className="sub" id="workflow-prompts">
+              {workflow.prompts && workflow.prompts.length > 0
+                ? `Tracked objects: ${workflow.prompts.join(', ')}`
+                : 'Tracked objects: block-tower default set'}
+            </p>
+          )}
         </div>
         <span className="pill warn" data-demo-badge hidden={!demo}>
           Demo data
         </span>
       </div>
+      {workflow && learnReport && (
+        <div className="panel" style={{ marginBottom: '12px' }}>
+          <header>
+            <h2>Reference</h2>
+            <span className="meta">{workflow.source_video}</span>
+          </header>
+          <div id="learn-evidence">
+            <EvidencePlayer
+              key={workflow.source_video}
+              report={learnReport}
+              finding={null}
+              workflow={workflow}
+              seek={null}
+              stored={null}
+              mode="learn"
+            />
+          </div>
+        </div>
+      )}
       <div className="panel">
         <header>
           <h2>Steps</h2>

@@ -28,11 +28,15 @@ export default function ReportView({ report, workflow, demo, freshRunId }: Props
   const [historyRun, setHistoryRun] = useState<RunRecord | null>(null)
   const [historyLoading, setHistoryLoading] = useState(false)
   const [historyErr, setHistoryErr] = useState<string | null>(null)
+  const [chain, setChain] = useState<{ ok: boolean; count: number; bad_id: string } | null>(null)
 
   useEffect(() => {
     let alive = true
     api.runs().then((list) => {
       if (alive) setRuns(list)
+    })
+    api.runsVerify().then((status) => {
+      if (alive) setChain(status)
     })
     return () => {
       alive = false
@@ -118,7 +122,7 @@ export default function ReportView({ report, workflow, demo, freshRunId }: Props
     bad[f.step_id] = (bad[f.step_id] || 0) + 1
   })
 
-  const trailMeta = historyId
+  const trailBase = historyId
     ? historyLoading
       ? 'Loading…'
       : historyRun
@@ -129,6 +133,10 @@ export default function ReportView({ report, workflow, demo, freshRunId }: Props
       : report
         ? 'This check was not saved as a run'
         : 'No checks yet'
+  const trailMeta =
+    trailBase +
+    (historyRun && historyRun.run_hash ? ` · #${historyRun.run_hash.slice(0, 7)}` : '') +
+    (chain ? (chain.ok ? ` · chain OK · ${chain.count} runs` : ` · chain BROKEN at ${chain.bad_id}`) : '')
   const downloadable = historyRun !== null || freshRunId !== ''
 
   return (
@@ -243,6 +251,7 @@ export default function ReportView({ report, workflow, demo, freshRunId }: Props
               workflow={workflow}
               seek={seek}
               stored={storedTracks}
+              mode="verify"
             />
           ) : (
             <div className="empty">Verify a video to enable playback.</div>

@@ -29,6 +29,7 @@ export interface RunViewProps {
   onSelectSaved: (id: string) => Promise<void>
   onRefresh: () => void
   stampText: string
+  sessionPrompts?: string[]
 }
 
 function ProcView({ proc }: { proc: ProcState }) {
@@ -132,6 +133,7 @@ export default function RunView(p: RunViewProps) {
   const [verifyFile, setVerifyFile] = useState<File | null>(null)
   const [learnDrag, setLearnDrag] = useState(false)
   const [verifyDrag, setVerifyDrag] = useState(false)
+  const [learnPrompts, setLearnPrompts] = useState('')
   const [learnProc, setLearnProc] = useState<ProcState | null>(null)
   const [verifyProc, setVerifyProc] = useState<ProcState | null>(null)
   const [learnErr, setLearnErr] = useState<ErrState | null>(null)
@@ -185,7 +187,11 @@ export default function RunView(p: RunViewProps) {
       return
     }
     const file = learnFile
-    void runUpload('learn', '/api/learn', 'Learning workflow from video 1.', () => api.learn(file), (wf, savedId) => {
+    const prompts = learnPrompts
+      .split('\n')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0)
+    void runUpload('learn', '/api/learn', 'Learning workflow from video 1.', () => api.learn(file, prompts), (wf, savedId) => {
       p.onLearned(wf, savedId, `Learned ${wf.steps.length} steps at ${stamp()}`)
       p.onRefresh()
     })
@@ -259,6 +265,17 @@ export default function RunView(p: RunViewProps) {
             onDrag={setLearnDrag}
             onFile={setLearnFile}
           />
+          <label className="sub" htmlFor="learn-prompts" style={{ display: 'block', marginBottom: '4px' }}>
+            Objects to track (one per line, blank = block-tower set)
+          </label>
+          <textarea
+            className="input"
+            id="learn-prompts"
+            rows={3}
+            style={{ width: '100%', marginBottom: '8px' }}
+            value={learnPrompts}
+            onChange={(e) => setLearnPrompts(e.target.value)}
+          />
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             <button className="btn primary" id="learn-btn" disabled={learnProc !== null} onClick={startLearn}>
               Learn workflow
@@ -306,6 +323,11 @@ export default function RunView(p: RunViewProps) {
               </option>
             ))}
           </select>
+          {selectValue === sessionValue && p.sessionPrompts && p.sessionPrompts.length > 0 && (
+            <p className="sub" style={{ margin: '0 0 4px' }}>
+              {`Checking ${p.sessionPrompts.length} custom objects.`}
+            </p>
+          )}
           <p className="sub" id="verify-workflow-name" role="status" style={{ margin: '0 0 8px' }}>
             {p.activeName ? 'Active workflow: ' + p.activeName : 'Active workflow: none — learn or pick a saved one.'}
           </p>

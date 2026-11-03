@@ -35,6 +35,12 @@ designed for, not a claim of adoption.
   structure the observations into a workflow (objects, ordered steps, one
   checkpoint per step with a 3×3 grid + stack level per object), validates it
   strictly, saves it to `data/workflows/`, and shows it in the Workflow view.
+  The Workflow view also replays the reference video that taught it.
+- **Custom tasks**: the Learn card accepts 1–8 object phrases (one per line,
+  sent as the `object_prompts` field); blank keeps the block-tower set. The
+  list is stored on the workflow and Verify reuses it, so any procedure with
+  distinct visible objects — e.g. pack-a-box — works end to end. See
+  [docs/VIDEO-AI.md](docs/VIDEO-AI.md) for generating example clips.
 - **Verify** (`POST /api/verify`): upload a video of a new execution. The
   server tracks it, maps it to observed steps, and compares them against the
   learned workflow with a deterministic comparator. The Report view shows a
@@ -53,6 +59,11 @@ designed for, not a claim of adoption.
   server restart does not lose the learned process.
 - **Mock mode**: without an API key the whole flow works offline on fixtures,
   with a "Demo data" badge wherever fixture data is shown.
+- **Evidence trail**: every Verify appends one run to `data/processlens.db`
+  (SQLite): report, tracks snapshot, workflow, video, timestamp. Runs link
+  into a SHA-256 hash chain (`GENESIS` seed); `GET /api/runs/verify` reports
+  `{ok, count, bad_id}`, the Report view shows the chain badge plus each
+  run's short hash, and any past run can be reopened or downloaded as JSON.
 
 ## Architecture
 
@@ -88,6 +99,7 @@ Go server (cmd/server, binds 127.0.0.1)
 | `testdata/` | fixtures: workflow, tracks, observed steps, report, SAM sample |
 | `scripts/verify-live.sh` | key check + model discovery + chat probe + responses route probe |
 | `docs/RECORDING.md` | recording protocol (+ `RECORDING.es.md` in Spanish) |
+| `docs/VIDEO-AI.md` | video-AI example kit: pack-a-box scripts + prompts (+ `VIDEO-AI.es.md`) |
 | `docs/DEMO-90S.md` | 90-second demo runbook |
 | `docs/AUDIT.md` | read-only technical audit (2026-11-02, in Spanish) |
 
@@ -252,7 +264,12 @@ What the suites prove (from the test names and fixtures in the repo):
   per-concept error naming, cancellation, and retry behavior (429/5xx retried,
   4xx fails fast, exhaustion surfaces).
 - `internal/graph`: the `workflow.json` fixture parses and validates; fenced
-  (```json) replies tolerated; invalid workflows rejected.
+  (```json) replies tolerated; invalid workflows rejected; custom `prompts`
+  round-trip while legacy files without the key still parse.
+- `internal/store` + `cmd/server` runs: custom-prompts parsing table (fails
+  closed on invalid input), hash-chain round-trip, tamper detection (also
+  across reopen), legacy-DB migration backfill, and the `/api/runs/verify`
+  shape.
 - `cmd/server`: health/static/demo endpoints, mock Learn/Verify transitions
   with real progress stages, saved-workflow round-trip/list/select including
   invalid-file skipping and id rejection, video range serving with traversal
@@ -281,9 +298,17 @@ repo was created in that window:
   processing overlay with real stages and elapsed clock, evidence player with
   tracked-box overlay and finding seek, saved-workflow selector, mock-mode
   badges; served from `web/dist`, dev via `vite dev` proxy.
+- SQLite evidence trail (`internal/store`, `data/processlens.db`): append-only
+  runs with report + tracks snapshots, SHA-256 hash chain with
+  `GET /api/runs/verify`, history picker and JSON download in the Report view.
+- Custom tasks: optional `object_prompts` on Learn (stored per workflow,
+  reused by Verify), custom-objects note, tracked-objects line and reference
+  playback in the Workflow view.
 - Fixtures and protocol: `testdata/` (workflow, tracks, observed steps,
-  report, SAM sample), `docs/RECORDING.md` (+ Spanish version), `docs/AUDIT.md`
-  read-only audit, `docs/DEMO-90S.md` demo runbook, `scripts/verify-live.sh`.
+  report, SAM sample), `docs/RECORDING.md` (+ Spanish version),
+  `docs/VIDEO-AI.md` video-AI example kit (+ Spanish version),
+  `docs/AUDIT.md` read-only audit, `docs/DEMO-90S.md` demo runbook,
+  `scripts/verify-live.sh`.
 
 ## Security notes
 

@@ -36,6 +36,7 @@ export interface Workflow {
   objects: WFObject[]
   steps: Step[]
   checkpoints: Checkpoint[]
+  prompts?: string[]
 }
 
 // The demo fixture spells the detail "Detail" while the live API spells it
@@ -119,6 +120,8 @@ export interface RunSummary {
   passed: boolean
   findings_count: number
   duration_ms: number
+  run_hash: string
+  prev_hash: string
 }
 
 // GET /api/runs/{id}: the stored meta plus the exact bytes the API served.

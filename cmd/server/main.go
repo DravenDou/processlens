@@ -17,6 +17,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"processlens/internal/graph"
 	"processlens/internal/meta"
@@ -37,6 +38,54 @@ const (
 var defaultPrompts = []string{
 	"red toy brick", "blue toy brick", "yellow toy brick",
 	"orange toy brick", "white toy brick", "black toy brick",
+}
+
+// Custom object prompts bound the optional 'object_prompts' learn field:
+// at most maxPrompts labels of at most maxPromptLen characters each.
+const (
+	maxPromptLen = 80
+	maxPrompts   = 8
+)
+
+// parseObjectPrompts validates the optional 'object_prompts' learn field, a
+// JSON array of strings. Absent or blank means "not provided" and resolves
+// to the default prompts; a present-but-invalid value fails closed with an
+// explicit error. Entries are trimmed, empties dropped, exact duplicates
+// removed, and the survivors must number 1..8 with ≤80 characters each.
+func parseObjectPrompts(raw string) ([]string, error) {
+	if strings.TrimSpace(raw) == "" {
+		return append([]string(nil), defaultPrompts...), nil
+	}
+	var items []string
+	if err := json.Unmarshal([]byte(raw), &items); err != nil {
+		return nil, fmt.Errorf("invalid object_prompts: want a JSON array of strings: %w", err)
+	}
+	var out []string
+	seen := map[string]bool{}
+	for _, p := range items {
+		p = strings.TrimSpace(p)
+		if p == "" || seen[p] {
+			continue
+		}
+		if utf8.RuneCountInString(p) > maxPromptLen {
+			return nil, fmt.Errorf("invalid object_prompts: prompt %q exceeds %d characters", p, maxPromptLen)
+		}
+		seen[p] = true
+		out = append(out, p)
+	}
+	if len(out) < 1 || len(out) > maxPrompts {
+		return nil, fmt.Errorf("invalid object_prompts: want 1..%d prompts, got %d", maxPrompts, len(out))
+	}
+	return out, nil
+}
+
+// resolvePrompts returns the tracking prompts for a workflow: its learned
+// custom list when present, else the demo defaults.
+func resolvePrompts(wf *graph.Workflow) []string {
+	if wf != nil && len(wf.Prompts) > 0 {
+		return append([]string(nil), wf.Prompts...)
+	}
+	return append([]string(nil), defaultPrompts...)
 }
 
 // Server holds demo state. lastLearned remembers the most recent /api/learn
@@ -140,6 +189,7 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /api/demo/workflow", s.handleDemoWorkflow)
 	mux.HandleFunc("GET /api/demo/report", s.handleDemoReport)
 	mux.HandleFunc("GET /api/runs", s.handleRuns)
+	mux.HandleFunc("GET /api/runs/verify", s.handleRunsVerify)
 	mux.HandleFunc("GET /api/runs/{id}", s.handleRun)
 	mux.HandleFunc("GET /videos/", s.handleVideo)
 	mux.HandleFunc("GET /api/tracks", s.handleTracks)
@@ -235,6 +285,18 @@ func (s *Server) handleLearn(w http.ResponseWriter, r *http.Request) {
 		fail(http.StatusBadRequest, err)
 		return
 	}
+	// storedVideo already parsed the multipart form, so the optional
+	// custom-prompts field is readable here ("" for JSON uploads).
+	rawPrompts := r.FormValue("object_prompts")
+	prompts, err := parseObjectPrompts(rawPrompts)
+	if err != nil {
+		fail(http.StatusBadRequest, err)
+		return
+	}
+	// Only custom lists are recorded on the workflow: absent prompts keep
+	// files (and old runs) identical to before, and let the UI tell a
+	// default learn from a custom one.
+	customPrompts := strings.TrimSpace(rawPrompts) != ""
 	s.setProgress("learn", "video received", name, -1, -1)
 	if s.mock {
 		s.setProgress("learn", "loading demo workflow", "", -1, -1)
@@ -249,6 +311,9 @@ func (s *Server) handleLearn(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		wf.SourceVideo = name
+		if customPrompts {
+			wf.Prompts = prompts
+		}
 		s.rememberLearn(wf, s.mockLearnTracks(r.Context(), path, name))
 		s.setProgress("learn", "workflow done", fmt.Sprintf("%d steps", len(wf.Steps)), -1, -1)
 		s.persistLearned(w, wf)
@@ -257,7 +322,7 @@ func (s *Server) handleLearn(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Minute)
 	defer cancel()
-	tracks, err := s.meta.TrackWithProgress(ctx, path, defaultPrompts,
+	tracks, err := s.meta.TrackWithProgress(ctx, path, prompts,
 		func(stage, detail string, done, total int) {
 			s.setProgress("learn", stage, detail, done, total)
 		})
@@ -287,6 +352,9 @@ func (s *Server) handleLearn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	wf.SourceVideo = name
+	if customPrompts {
+		wf.Prompts = prompts
+	}
 	vw, vh, vfps := s.probeDims(ctx, path)
 	s.rememberLearn(wf, &trackSet{Video: name, Available: true, Width: vw, Height: vh, FPS: vfps, Frames: tracks})
 	s.setProgress("learn", "workflow done", fmt.Sprintf("%d steps", len(wf.Steps)), -1, -1)
@@ -387,7 +455,7 @@ func (s *Server) handleVerify(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Minute)
 	defer cancel()
-	tracks, err := s.meta.TrackWithProgress(ctx, path, defaultPrompts,
+	tracks, err := s.meta.TrackWithProgress(ctx, path, resolvePrompts(wf),
 		func(stage, detail string, done, total int) {
 			s.setProgress("verify", stage, detail, done, total)
 		})
